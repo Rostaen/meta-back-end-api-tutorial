@@ -5,11 +5,11 @@ from rest_framework.views import APIView
 from .models import BookItem
 from .serializers import BookItemSerializer
 from rest_framework import status
+from django.core.paginator import Paginator, EmptyPage
 
 @api_view(['GET', 'POST'])
 def books(request):
     return Response('list of the books', status=status.HTTP_200_OK)
-
 
 @api_view(['GET', 'POST'])
 def book_items(request):
@@ -20,18 +20,28 @@ def book_items(request):
         to_price = request.query_params.get('to_price')
         search = request.query_params.get('search')
         ordering = request.query_params.get('ordering')
+        perpage = request.query_params.get('perpage', default=2)
+        page = request.query_params.get('page', default=1)
 
         # Filtered view of the database
         if category_name:
-            items = items.filter(category__title = category_name)
+            items = items.filter(category__title=category_name)
         if to_price:
-            items = items.filter(price__lte = to_price) # lte = less than or equal to
+            items = items.filter(price__lte=to_price) # lte = less than or equal to
         if search:
-            items = items.filter(title__icontains = search) #icontains will find the characters anywhere in the title
+            items = items.filter(title__icontains=search) #icontains will find the characters anywhere in the title
         if ordering: # Currently there is a bug where multifield ordering is returning an error. Working on this bug.
             ordering_fields = ordering.split(",")
             items = items.order_by(*ordering_fields)
 
+        # Querying the database with supplied or default values
+        paginator = Paginator(items, per_page=perpage)
+        try:
+            items = paginator.page(number=page)
+        except EmptyPage:
+            items = []
+
+        # Serializing the view
         serialized_item = BookItemSerializer(items, many=True)
         return Response(serialized_item.data)
 
