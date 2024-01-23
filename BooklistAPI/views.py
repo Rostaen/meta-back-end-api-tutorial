@@ -1,14 +1,15 @@
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator, EmptyPage
+from django.contrib.auth.models import User, Group
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 from .models import BookItem
 from .serializers import BookItemSerializer
-from .throttles import TenCallsPerMinute
+# from .throttles import TenCallsPerMinute
 
 @api_view(['GET', 'POST'])
 def books(request):
@@ -97,6 +98,21 @@ def throttle_check(request):
 
 @api_view()
 @permission_classes([IsAuthenticated])
-@throttle_classes([TenCallsPerMinute])
+@throttle_classes([UserRateThrottle])
 def throttle_check_auth(request):
     return Response({"message": "message for the logged in users only"})
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def managers(request):
+    username = request.data['username']
+    if username:
+        user = get_object_or_404(User, username=username)
+        managers = Group.objects.get(name="Manager")
+        if request.method == 'POST':
+            managers.user_set.add(user)
+        elif request.method == 'DELETE':
+            managers.user_set.remove(user)
+        return Response({"message": "Ok"})
+
+    return Response({"message": "Error"}, status.HTTP_400_BAD_REQUEST)
