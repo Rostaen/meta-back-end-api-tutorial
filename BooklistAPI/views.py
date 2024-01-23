@@ -1,11 +1,14 @@
 from django.shortcuts import get_object_or_404
+from django.core.paginator import Paginator, EmptyPage
+from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, renderer_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 from .models import BookItem
 from .serializers import BookItemSerializer
-from rest_framework import status
-from django.core.paginator import Paginator, EmptyPage
+from .throttles import TenCallsPerMinute
 
 @api_view(['GET', 'POST'])
 def books(request):
@@ -73,3 +76,27 @@ class Book(APIView):
 
     def put(self, request, pk):
         return Response({"title": request.data.get('title')}, status.HTTP_200_OK)
+
+@api_view()
+@permission_classes([IsAuthenticated])
+def secret(request):
+    return Response({"message": "Some secret message"})
+
+@api_view()
+@permission_classes([IsAuthenticated])
+def manager_view(request):
+    if request.user.groups.filter(name='Manager').exists():
+        return Response({"message": "You are a manager. Only Managers Should See This!"})
+    else:
+        return Response({"message": "You are not authorized"}, 403)
+
+@api_view()
+@throttle_classes([AnonRateThrottle])
+def throttle_check(request):
+    return Response({"message": "successful"})
+
+@api_view()
+@permission_classes([IsAuthenticated])
+@throttle_classes([TenCallsPerMinute])
+def throttle_check_auth(request):
+    return Response({"message": "message for the logged in users only"})
